@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ijtemai Qurbani Cost Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Ijtemai Qurbani Cost Calculator</h1>
+            <p class="subtitle">Calculate per-animal total cost for collective qurbani</p>
+            <!-- Debug console (can be removed later) -->
+            <div id="debugPanel" style="background: #f0f0f0; padding: 8px; margin-top: 10px; border-radius: 4px; font-size: 0.85em; max-height: 80px; overflow-y: auto;">
+                <strong>Debug Log:</strong><br>
+                <div id="debugLog" style="color: #333;"></div>
+            </div>
+        </header>
+
+        <nav class="nav-tabs">
+            <button type="button" class="tab-button active" id="tabAnimalsButton" data-tab="animals">Animals</button>
+            <button type="button" class="tab-button" id="tabFeedButton" data-tab="feed">Daily Feed</button>
+            <button type="button" class="tab-button" id="tabTransportButton" data-tab="transport">Transport</button>
+            <button type="button" class="tab-button" id="tabRentButton" data-tab="rent">Shade Rent</button>
+            <button type="button" class="tab-button" id="tabMedicineButton" data-tab="medicine">Medicine</button>
+            <button type="button" class="tab-button" id="tabFixedButton" data-tab="fixed">Fixed Cost</button>
+            <button type="button" class="tab-button" id="tabExtraButton" data-tab="extra">Extra Costs</button>
+            <button type="button" class="tab-button" id="tabResultsButton" data-tab="results">Results</button>
+        </nav>
+
+        <!-- ANIMALS TAB -->
+        <section id="animals" class="tab-content active">
+            <div class="card">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                    <!-- Left: Initialize -->
+                    <div>
+                        <h2>جانوروں کی تعداد (Total Animals)</h2>
+                        <div class="form-group">
+                            <label>قربانی کی تاریخ (Qurbani Date):</label>
+                            <input type="date" id="qurbaniDate">
+                        </div>
+                        <!-- Booking ID removed per user request -->
+                        <div class="form-group">
+                            <label>کتنے جانور ہیں؟ (How many animals?)</label>
+                            <input type="number" id="totalAnimals" min="1" placeholder="e.g., 5">
+                            <button class="btn btn-primary" id="startAnimalsButton">شروع کریں (Start)</button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Current Status -->
+                    <div id="statusBox" style="background: #f0f7ff; padding: 20px; border-radius: 8px; border-left: 4px solid #4299e1;">
+                        <h3 style="margin-top: 0; color: #2c5aa0;">حالت (Status)</h3>
+                        <div id="statusText" style="color: #2c5aa0; font-size: 1.1em;">
+                            کل جانور شمار کریں (Enter total animals first)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form to enter each animal's details -->
+                <div id="animalFormContainer" style="display: none; margin-top: 30px; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+                    <h3 id="animalFormTitle"></h3>
+                    <div class="form-group">
+                        <label>آنے کی تاریخ (Arrival Date):</label>
+                        <input type="date" id="arrivalDateInput">
+                    </div>
+                    <div class="form-group">
+                        <label>خریداری کی قیمت (Purchase Price):</label>
+                        <input type="number" id="purchasePriceInput" min="0" placeholder="e.g., 10000">
+                    </div>
+                    <button class="btn btn-success" id="saveAnimalButton">محفوظ کریں (Save)</button>
+                </div>
+
+                <!-- Animals Summary Table -->
+                <div id="animalsSummaryContainer" style="display: none; margin-top: 30px;">
+                    <h3>جانوروں کی فہرست (Animals List)</h3>
+                    <div class="records-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>جانور # (ID)</th>
+                                    <th>آنے کی تاریخ (Arrival Date)</th>
+                                    <th>آنے کا دن (Arrival Day)</th>
+                                    <th>خریداری کی قیمت (Price)</th>
+                                    <th>حالت (Status)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="animalsSummaryTable">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DAILY FEED TAB -->
+        <section id="feed" class="tab-content">
+            <div class="card">
+                <h2>Animal-Days Feed Calculator</h2>
+                <p class="info-box" style="margin-bottom: 20px;">
+                    <strong>Animal-Days Method:</strong> Calculate feed cost based on total animal-days present.
+                </p>
+
+                <!-- Feed Arrival Count -->
+                <div class="form-group">
+                    <label>چارہ کتنی بار آیا؟ (How many feed arrivals?)</label>
+                    <input type="number" id="feedArrivalCount" min="1" placeholder="e.g., 3">
+                    <button class="btn btn-primary" id="setFeedArrivalCountButton" style="margin-top: 10px;">Confirm</button>
+                </div>
+
+                <!-- Feed Batch Form (hidden until feed arrival count is set) -->
+                <div id="feedBatchForm" style="display: none; padding: 20px; background: #f9f9f9; border-radius: 8px; margin-bottom: 20px;">
+                    <h3>چارہ کی بار کی تفصیل (Feed Batch Details)</h3>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label>آنے کا دن (Feed Day):</label>
+                            <input type="number" id="feedDayInput" min="1" placeholder="e.g., 1">
+                        </div>
+                        <div class="form-group">
+                            <label>کل مقدار (Quantity):</label>
+                            <input type="number" id="feedQuantityInput" min="0" placeholder="e.g., 10">
+                        </div>
+                        <div class="form-group">
+                            <label>فی یونٹ قیمت (Rate per Unit):</label>
+                            <input type="number" id="feedRateInput" min="0" placeholder="e.g., 120">
+                        </div>
+                        <div class="form-group">
+                            <label>کل قیمت (Total Cost):</label>
+                            <input type="number" id="feedTotalCostInput" min="0" placeholder="e.g., 1200">
+                        </div>
+                    </div>
+                    <button class="btn btn-success" id="addFeedBatchButton">چارے کا ریکارڈ شامل کریں (Add Feed Batch)</button>
+                </div><!-- End feedBatchForm -->
+
+                <h3>چارے کی بار کی فہرست (Feed Batch List)</h3>
+                <div class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>آنے کا دن</th>
+                                <th>مقدار</th>
+                                <th>فی یونٹ قیمت</th>
+                                <th>کل قیمت</th>
+                                <th>موجود جانور</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="feedBatchesTable">
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>جانوروں کے گروپس (Animal Groups)</h3>
+                <div class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>گروپ #</th>
+                                <th>جانور</th>
+                                <th>آنے کا دن</th>
+                                <th>قیام کے دن</th>
+                                <th>جانور-دن</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="animalGroupsTable">
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Calculate Button -->
+                <div style="text-align: center; margin: 30px 0;">
+                    <button class="btn btn-info" id="calculateFeedDistributionButton" style="font-size: 1.2em; padding: 15px 30px;">
+                        چارے کی قیمت کا حساب لگائیں (Calculate Feed Distribution)
+                    </button>
+                </div>
+
+                <!-- Results -->
+                <div id="feedResultsContainer" style="display: none;">
+                    <h3>حساب کا نتیجہ (Calculation Results)</h3>
+
+                    <!-- Summary -->
+                    <div class="info-box" style="margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <strong>کل چارہ لاگت (Total Feed Cost):</strong>
+                                <span id="totalFeedCostSummary" style="color: #667eea; font-size: 1.2em;"></span>
+                            </div>
+                            <div>
+                                <strong>فی جانور کل چارہ (Per Animal Feed Cost):</strong>
+                                <span id="perAnimalFeedCost" style="color: #667eea; font-size: 1.2em;"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Results Table -->
+                    <div class="records-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>گروپ #</th>
+                                    <th>جانور</th>
+                                    <th>آنے کا دن</th>
+                                    <th>کل چارہ قیمت</th>
+                                    <th>فی جانور قیمت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="feedResultsTable">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- TRANSPORT TAB -->
+        <section id="transport" class="tab-content">
+            <div class="card">
+                <h2>Transport (Truck) Cost</h2>
+                
+                <div class="form-group">
+                    <label>Truck ID/Name:</label>
+                    <input type="text" id="truckId" placeholder="e.g., Truck 1">
+                </div>
+
+                <div class="form-group">
+                    <label>Total Transport Cost:</label>
+                    <input type="number" id="truckCost" min="0" placeholder="Total cost">
+                </div>
+
+                <div class="form-group">
+                    <label>Number of Animals in This Truck:</label>
+                    <input type="number" id="truckAnimals" min="1" placeholder="Number of animals">
+                </div>
+
+                <button class="btn btn-success" id="addTransportButton">Add Transport Record</button>
+
+                <h3>Transport Records</h3>
+                <div id="transportRecordsContainer" class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Truck ID</th>
+                                <th>Total Cost</th>
+                                <th>Animals Count</th>
+                                <th>Per-Animal Cost</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transportRecords">
+                            <!-- Transport records will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Assign Animals to Trucks</h3>
+                <div id="animalTruckAssignment">
+                    <!-- Animal-truck assignment will be here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- RENT TAB -->
+        <section id="rent" class="tab-content">
+            <div class="card">
+                <h2>Shade/Rent Cost Management</h2>
+                
+                <div class="form-group">
+                    <label>Total Rent/Shade Cost:</label>
+                    <input type="number" id="rentTotal" min="0" placeholder="Total rent cost">
+                </div>
+
+                <div class="form-group">
+                    <label>Number of Days:</label>
+                    <input type="number" id="rentDays" min="1" placeholder="Number of days">
+                </div>
+
+                <button class="btn btn-success" id="applyRentCostButton">Apply Rent Cost</button>
+
+                <div id="rentInfo" class="info-box">
+                    <!-- Rent info will be displayed here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- MEDICINE TAB -->
+        <section id="medicine" class="tab-content">
+            <div class="card">
+                <h2>Medicine Cost</h2>
+                
+                <div class="form-group">
+                    <label>Select Animal:</label>
+                    <select id="medicineAnimalSelect">
+                        <option value="">-- Select Animal --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Medicine Cost:</label>
+                    <input type="number" id="medicineCost" min="0" placeholder="Medicine cost">
+                </div>
+
+                <button class="btn btn-success" id="addMedicineCostButton">Add Medicine Cost</button>
+
+                <h3>Medicine Records</h3>
+                <div id="medicineRecordsContainer" class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Animal ID</th>
+                                <th>Medicine Cost</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="medicineRecords">
+                            <!-- Medicine records will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- FIXED COST TAB -->
+        <section id="fixed" class="tab-content">
+            <div class="card">
+                <h2>مقررہ اخراجات (Fixed Cost)</h2>
+                <p class="info-box" style="margin-bottom: 20px;">
+                    <strong>تمام جانوروں میں برابر تقسیم ہوں گے (Equally divided among all animals)</strong>
+                </p>
+                
+                <div class="form-group">
+                    <label>اخراج کی تفصیل (Cost Description):</label>
+                    <input type="text" id="fixedCostDescription" placeholder="e.g., سامان، وقت کی مزدوری (Equipment, Labor, etc.)">
+                </div>
+
+                <div class="form-group">
+                    <label>کل رقم (Total Amount):</label>
+                    <input type="number" id="fixedCostAmount" min="0" placeholder="e.g., 5000">
+                </div>
+
+                <button class="btn btn-success" id="addFixedCostButton">شامل کریں (Add)</button>
+
+                <h3>مقررہ اخراجات کی فہرست (Fixed Costs List)</h3>
+                <div id="fixedCostsContainer" class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>تفصیل (Description)</th>
+                                <th>کل رقم (Total Amount)</th>
+                                <th>فی جانور (Per Animal)</th>
+                                <th>حالت (Action)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fixedCostsTable">
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>کل مقررہ اخراجات (Total Fixed Costs)</h3>
+                <div class="info-box">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <strong>کل رقم (Total Amount):</strong>
+                            <span id="totalFixedCostAmount" style="color: #667eea; font-size: 1.2em;">Rs. 0.00</span>
+                        </div>
+                        <div>
+                            <strong>فی جانور (Per Animal):</strong>
+                            <span id="perAnimalFixedCost" style="color: #667eea; font-size: 1.2em;">Rs. 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- EXTRA COSTS TAB -->
+        <section id="extra" class="tab-content">
+            <div class="card">
+                <h2>Extra Costs</h2>
+                
+                <div class="form-group">
+                    <label>Cost Description:</label>
+                    <input type="text" id="extraDescription" placeholder="e.g., Labor, Water, etc.">
+                </div>
+
+                <div class="form-group">
+                    <label>Total Amount:</label>
+                    <input type="number" id="extraAmount" min="0" placeholder="Total amount">
+                </div>
+
+                <div class="form-group">
+                    <label>Distribution:</label>
+                    <select id="extraDistribution">
+                        <option value="equal">Equal among all animals</option>
+                        <option value="custom">Custom selection</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-success" id="addExtraCostButton">Add Extra Cost</button>
+
+                <h3>Extra Cost Records</h3>
+                <div id="extraRecordsContainer" class="records-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Total Amount</th>
+                                <th>Distribution</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="extraRecords">
+                            <!-- Extra cost records will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- RESULTS TAB -->
+        <section id="results" class="tab-content">
+            <div class="card">
+                <h2>Cost Breakdown & Results</h2>
+                
+                <button class="btn btn-info" id="calculateTotalCostsButton">Calculate Total Costs</button>
+
+                <div id="resultsContainer">
+                    <!-- Results will be displayed here -->
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>&copy; 2026 Ijtemai Qurbani Cost Calculator</p>
+        </footer>
+    </div>
+
+    <script src="./node_modules/@supabase/supabase-js/dist/umd/supabase.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
