@@ -820,21 +820,79 @@ function renderAnimalsSummary() {
     const tbody = document.getElementById('animalsSummaryTable');
     tbody.innerHTML = '';
 
-    calculatorData.animals.forEach(animal => {
+    calculatorData.animals.forEach((animal, index) => {
         const row = document.createElement('tr');
         const status = animal.purchasePrice > 0 ? '<span class="success">✓ مکمل</span>' : '<span class="warning">⚠ نامکمل</span>';
         const arrivalDateStr = animal.arrivalDate ? animal.arrivalDate.toLocaleDateString('en-GB') : 'N/A';
         row.innerHTML = `
-            <td><strong>جانور #${animal.id}</strong></td>
+            <td>
+                <input type="text" class="animal-id-input" value="جانور #${animal.id}" data-index="${index}" style="border: none; background: transparent; font-weight: bold; width: 100%;">
+            </td>
             <td><strong>${arrivalDateStr}</strong></td>
             <td><strong>دن ${animal.arrivalDay}</strong></td>
             <td><strong style="color: #667eea; font-size: 1.1em;">Rs. ${animal.purchasePrice}</strong></td>
             <td>${status}</td>
+            <td>
+                <button class="btn btn-sm btn-info" onclick="saveAnimalIdEdit(${index})">محفوظ (Save)</button>
+            </td>
         `;
         tbody.appendChild(row);
     });
 
     document.getElementById('animalsSummaryContainer').style.display = 'block';
+}
+
+/**
+ * Save edited animal ID to database
+ */
+async function saveAnimalIdEdit(index) {
+    const animal = calculatorData.animals[index];
+    if (!animal) return;
+
+    const inputElement = document.querySelector(`.animal-id-input[data-index="${index}"]`);
+    const newIdText = inputElement.value.trim();
+    
+    // Extract just the ID number from "جانور #123" format
+    const match = newIdText.match(/#(\d+)/);
+    if (!match) {
+        alert('براہ کرم صحیح شناخت درج کریں (Please enter a valid ID in format: جانور #123)');
+        return;
+    }
+
+    const newId = parseInt(match[1], 10);
+    if (newId === animal.id) {
+        console.log('No change in animal ID');
+        return;
+    }
+
+    try {
+        // Update locally
+        const oldId = animal.id;
+        animal.id = newId;
+
+        // Try to update in database
+        if (supabaseReady && supabaseClient) {
+            const { error } = await supabaseClient
+                .from('animals')
+                .update({ id: newId })
+                .eq('id', oldId);
+
+            if (error) {
+                console.warn('⚠️ Database update failed, saved locally:', error.message);
+                alert('ڈیٹابیس میں محفوظ نہیں ہو سکے لیکن مقامی طور پر محفوظ ہے (Saved locally, database update failed)');
+            } else {
+                console.log('✅ Animal ID updated in database:', { oldId, newId });
+                alert('جانور کی شناخت محفوظ ہو گئی (Animal ID saved successfully)');
+            }
+        }
+
+        // Re-render to reflect changes
+        renderAnimalsSummary();
+        updateAnimalGroupsFromAnimals();
+    } catch (error) {
+        console.error('Error updating animal ID:', error);
+        alert('خرابی: براہ کرم دوبارہ کوشش کریں (Error: Please try again)');
+    }
 }
 
 /**
