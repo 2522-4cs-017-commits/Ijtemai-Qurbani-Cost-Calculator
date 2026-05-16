@@ -163,7 +163,7 @@ async function loadBookingData(bookingId) {
         }
 
         calculatorData.animals = animals.map((animal, index) => ({
-            id: animal.id ?? index + 1,
+            id: index + 1,  // Renumber sequentially from 1
             purchasePrice: Number(animal.purchase_price) || 0,
             arrivalDay: Number(animal.arrival_day) || 1,
             arrivalDate: animal.arrival_date ? new Date(animal.arrival_date) : null,
@@ -173,6 +173,8 @@ async function loadBookingData(bookingId) {
         }));
 
         currentAnimalIndex = calculatorData.animals.length;
+        lastArrivalDay = 1;
+        lastArrivalDate = null;
         updateAnimalGroupsFromAnimals();
         updateFixedCostsSummary();
         renderAnimalsSummary();
@@ -384,6 +386,15 @@ let lastArrivalDay = 1;
 let lastArrivalDate = null;
 
 /**
+ * Renumber all animals sequentially from 1
+ */
+function renumberAnimalsSequentially() {
+    calculatorData.animals.forEach((animal, index) => {
+        animal.id = index + 1;
+    });
+}
+
+/**
  * Initialize animals based on total count
  */
 function initializeAnimals() {
@@ -407,7 +418,59 @@ function initializeAnimals() {
     }
 
     currentAnimalIndex = 0;
+    lastArrivalDay = 1;
+    lastArrivalDate = null;
     showAnimalForm();
+}
+
+/**
+ * Clear all animals from local state and database
+ */
+async function clearAllAnimals() {
+    if (!confirm('کیا آپ یقینی ہیں؟ تمام جانور اور ڈیٹا حذف ہو جائے گا۔ (Are you sure? All animals will be deleted.)')) {
+        return;
+    }
+
+    try {
+        // Delete from database if available
+        if (supabaseReady && supabaseClient) {
+            const animalIds = calculatorData.animals.map(a => a.id);
+            if (animalIds.length > 0) {
+                const { error } = await supabaseClient
+                    .from('animals')
+                    .delete()
+                    .in('id', animalIds);
+                if (error) {
+                    console.warn('⚠️ Could not delete from database:', error.message);
+                }
+            }
+        }
+
+        // Clear local state
+        calculatorData.animals = [];
+        calculatorData.feedBatches = [];
+        calculatorData.dailyFeeds = [];
+        calculatorData.transports = [];
+        calculatorData.animalTruckAssignment = {};
+        calculatorData.extraCosts = [];
+        calculatorData.fixedCosts = [];
+        calculatorData.medicineCosts = {};
+        calculatorData.rentCost = { total: 0, days: 0 };
+        
+        currentAnimalIndex = 0;
+        lastArrivalDay = 1;
+        lastArrivalDate = null;
+        
+        document.getElementById('animalFormContainer').style.display = 'none';
+        document.getElementById('animalsSummaryContainer').style.display = 'none';
+        document.getElementById('statusText').textContent = 'کل جانور شمار کریں (Enter total animals first)';
+        document.getElementById('totalAnimals').value = '';
+        
+        alert('تمام جانور حذف ہو گئے (All animals cleared)');
+    } catch (error) {
+        console.error('Error clearing animals:', error);
+        alert('خرابی: براہ کرم دوبارہ کوشش کریں (Error: Please try again)');
+    }
 }
 
 /**
@@ -503,7 +566,7 @@ async function saveCurrentAnimal() {
             animal.arrivalDay = arrivalDay;
             animal.arrivalDate = arrivalDate;
             animal.qurbaniDate = qurbaniDate;
-            animal.id = currentAnimalIndex + 1;
+            // ID is already set during initialization, no need to change it here
         }
 
         // Try to save to Supabase if available
@@ -527,11 +590,13 @@ async function saveCurrentAnimal() {
                 });
 
                 if (savedAnimal) {
-                    animal.id = savedAnimal.id;
+                    // Keep local animal ID (1, 2, 3...), don't override with database ID
+                    const localId = animal.id;
                     animal.purchasePrice = Number(savedAnimal.purchase_price) || purchasePrice;
                     animal.arrivalDay = Number(savedAnimal.arrival_day) || arrivalDay;
                     animal.arrivalDate = savedAnimal.arrival_date ? new Date(savedAnimal.arrival_date) : arrivalDate;
                     animal.qurbaniDate = savedAnimal.qurbani_date ? new Date(savedAnimal.qurbani_date) : qurbaniDate;
+                    animal.id = localId;  // Ensure ID remains sequential
                     console.log('✅ Animal saved to database:', savedAnimal);
                 }
             } catch (dbError) {
@@ -729,8 +794,8 @@ async function loadDatabaseData() {
 
         const assignments = normalizedAssignments;
 
-        calculatorData.animals = animals.map(animal => ({
-            id: animal.id,
+        calculatorData.animals = animals.map((animal, index) => ({
+            id: index + 1,  // Renumber sequentially from 1
             purchasePrice: Number(animal.purchase_price) || 0,
             arrivalDay: Number(animal.arrival_day) || 1,
             arrivalDate: animal.arrival_date ? new Date(animal.arrival_date) : null,
@@ -792,6 +857,8 @@ async function loadDatabaseData() {
         });
 
         currentAnimalIndex = calculatorData.animals.length;
+        lastArrivalDay = 1;
+        lastArrivalDate = null;
         updateAnimalGroupsFromAnimals();
         renderAnimalsSummary();
         renderFeedBatches();
@@ -2218,6 +2285,7 @@ async function initializeApp() {
 
         bindButton('setBookingIdButton', setBookingId);
         bindButton('startAnimalsButton', initializeAnimals);
+        bindButton('clearAllAnimalsButton', clearAllAnimals);
         bindButton('saveAnimalButton', saveCurrentAnimal);
         bindButton('setFeedArrivalCountButton', setFeedArrivalCount);
         bindButton('addFeedBatchButton', addFeedBatch);
