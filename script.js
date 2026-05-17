@@ -820,19 +820,36 @@ async function loadDatabaseData() {
         });
         calculatorData.dailyFeeds = [...calculatorData.feedBatches];
 
-        calculatorData.transports = transports.map(transport => ({
-            id: transport.id,
-            truckName: transport.truck_name || transport.truck_name,
-            totalCost: Number(transport.total_cost) || 0,
-            animalsCount: Number(transport.expected_animal_count ?? transport.assigned_animal_count ?? 0) || 0,
-            perAnimalCost: Number(transport.expected_animal_count ?? transport.assigned_animal_count) > 0
-                ? Number(transport.total_cost) / Number(transport.expected_animal_count ?? transport.assigned_animal_count)
-                : 0
-        }));
+        calculatorData.transports = transports.map(transport => {
+            const transportId = Number(transport.id ?? transport.transport_id ?? transport.truck_id);
+            const totalCost = Number(transport.total_cost ?? transport.cost ?? transport.amount ?? 0) || 0;
+            const animalCount = Number(
+                transport.expected_animal_count ??
+                transport.assigned_animal_count ??
+                transport.animal_count ??
+                transport.animalsCount ??
+                0
+            ) || 0;
+            const perAnimalCost = animalCount > 0
+                ? totalCost / animalCount
+                : Number(transport.per_animal_cost ?? transport.perAnimalCost ?? 0) || 0;
+
+            return {
+                id: transportId,
+                truckName: transport.truck_name || transport.truck_name || transport.name || `Truck ${transportId}`,
+                totalCost,
+                animalsCount: animalCount,
+                perAnimalCost
+            };
+        });
 
         calculatorData.animalTruckAssignment = {};
         assignments.forEach(assign => {
-            calculatorData.animalTruckAssignment[assign.animal_id] = assign.truck_id;
+            const animalId = Number(assign.animal_id);
+            const truckId = Number(assign.truck_id ?? assign.transport_id ?? assign.truckId ?? assign.transportId);
+            if (animalId > 0 && truckId > 0) {
+                calculatorData.animalTruckAssignment[animalId] = truckId;
+            }
         });
 
         calculatorData.extraCosts = extraCostsData.map(cost => ({
@@ -1559,8 +1576,9 @@ async function assignAnimalToTruck(animalId, truckId) {
  * Get assigned animal IDs for a specific truck
  */
 function getAssignedAnimalsForTruck(truckId) {
+    const normalizedTruckId = Number(truckId);
     return Object.keys(calculatorData.animalTruckAssignment)
-        .filter(animalId => calculatorData.animalTruckAssignment[animalId] === truckId)
+        .filter(animalId => Number(calculatorData.animalTruckAssignment[animalId]) === normalizedTruckId)
         .map(id => parseInt(id, 10));
 }
 
@@ -2103,12 +2121,12 @@ function calculateRentCost(animal) {
  * Calculate transport cost for an animal
  */
 function calculateTransportCost(animal) {
-    const truckId = calculatorData.animalTruckAssignment[animal.id];
+    const truckId = Number(calculatorData.animalTruckAssignment[animal.id]);
     if (!truckId) {
         return 0;
     }
 
-    const transport = calculatorData.transports.find(t => t.id === truckId);
+    const transport = calculatorData.transports.find(t => Number(t.id) === truckId);
     if (!transport) {
         return 0;
     }
