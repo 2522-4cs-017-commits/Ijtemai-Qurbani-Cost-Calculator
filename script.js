@@ -590,8 +590,9 @@ async function saveCurrentAnimal() {
                 });
 
                 if (savedAnimal) {
-                    // Keep local animal ID (1, 2, 3...), don't override with database ID
+                    // Keep local sequential ID but store DB id for mapping to assignments
                     const localId = animal.id;
+                    animal.dbId = savedAnimal.id;
                     animal.purchasePrice = Number(savedAnimal.purchase_price) || purchasePrice;
                     animal.arrivalDay = Number(savedAnimal.arrival_day) || arrivalDay;
                     animal.arrivalDate = savedAnimal.arrival_date ? new Date(savedAnimal.arrival_date) : arrivalDate;
@@ -794,8 +795,10 @@ async function loadDatabaseData() {
 
         const assignments = normalizedAssignments;
 
+        // Keep both a local sequential ID (`id`) and the original DB id (`dbId`).
         calculatorData.animals = animals.map((animal, index) => ({
-            id: index + 1,  // Renumber sequentially from 1
+            id: index + 1,  // Local sequential ID used in UI and calculations
+            dbId: animal.id ?? null, // Original DB id when present
             purchasePrice: Number(animal.purchase_price) || 0,
             arrivalDay: Number(animal.arrival_day) || 1,
             arrivalDate: animal.arrival_date ? new Date(animal.arrival_date) : null,
@@ -843,12 +846,20 @@ async function loadDatabaseData() {
             };
         });
 
+        // Build map: DB animal id -> local id
+        const animalLocalIdByDbId = {};
+        calculatorData.animals.forEach(a => {
+            if (a.dbId != null) animalLocalIdByDbId[Number(a.dbId)] = a.id;
+        });
+
+        // Map DB assignment rows (which use DB animal ids) to local animal ids
         calculatorData.animalTruckAssignment = {};
         assignments.forEach(assign => {
-            const animalId = Number(assign.animal_id);
+            const dbAnimalId = Number(assign.animal_id ?? assign.db_animal_id ?? assign.animalId);
             const truckId = Number(assign.truck_id ?? assign.transport_id ?? assign.truckId ?? assign.transportId);
-            if (animalId > 0 && truckId > 0) {
-                calculatorData.animalTruckAssignment[animalId] = truckId;
+            const localId = animalLocalIdByDbId[dbAnimalId];
+            if (localId && truckId > 0) {
+                calculatorData.animalTruckAssignment[localId] = truckId;
             }
         });
 
@@ -1542,6 +1553,7 @@ async function assignAnimalToTruck(animalId, truckId) {
     }
 
     const numericTruckId = parseInt(truckId, 10);
+    // Always keep the UI/local mapping (local sequential id -> truck id)
     calculatorData.animalTruckAssignment[animalId] = numericTruckId;
     const button = document.getElementById('addTransportButton');
     setLoadingState(button, true, 'Saving...');
@@ -1550,14 +1562,22 @@ async function assignAnimalToTruck(animalId, truckId) {
         // Try to save to database
         if (supabaseReady && supabaseClient) {
             try {
-                const result = await supabaseClient.from('animal_transport_assignments').insert({
-                    animal_id: animalId,
-                    truck_id: numericTruckId
-                });
-                if (result.error) {
-                    throw result.error;
+                // Use the DB animal id when available
+                const animalObj = calculatorData.animals.find(a => a.id === Number(animalId));
+                const dbAnimalId = animalObj && animalObj.dbId ? Number(animalObj.dbId) : null;
+                if (dbAnimalId) {
+                    const result = await supabaseClient.from('animal_transport_assignments').insert({
+                        animal_id: dbAnimalId,
+                        truck_id: numericTruckId
+                    });
+                    if (result.error) {
+                        throw result.error;
+                    }
+                    console.log('✅ Animal truck assignment saved to database (by dbId):', { dbAnimalId, truckId: numericTruckId });
+                } else {
+                    // If the animal hasn't been saved to DB yet, skip DB assignment for now
+                    console.log('⚠️ Animal has no dbId yet; assignment saved locally only:', { animalId, truckId: numericTruckId });
                 }
-                console.log('✅ Animal truck assignment saved to database:', { animalId, truckId: numericTruckId });
             } catch (dbError) {
                 console.warn('⚠️ Database save failed, saved locally:', dbError.message);
             }
